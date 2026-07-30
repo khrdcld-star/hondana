@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#22201b">
+<title>ほんだな</title>
+<style>
+  :root{
+    --paper:#ede7da;
+    --paper-deep:#ddd5c2;
+    --ink:#22201b;
+    --ink-soft:#5a5346;
+    --cloth:#3f5d4b;
+    --cloth-deep:#2c4235;
+    --gold:#b8935a;
+    --danger:#a04b3c;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+    color:var(--ink);
+    overscroll-behavior:none;
+    -webkit-user-select:none; user-select:none;
+  }
+  #app{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column;
+    background:var(--paper);
+  }
+
+  /* ---------- Library ---------- */
+  #library{
+    flex:1; display:flex; flex-direction:column; min-height:0;
+    padding-top:env(safe-area-inset-top);
+  }
+  #library-header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:22px 22px 6px;
+  }
+  #library-header h1{
+    font-family:ui-serif, Georgia, "Hiragino Mincho ProN", serif;
+    font-size:30px; font-weight:600; margin:0; letter-spacing:.02em;
+    color:var(--ink);
+  }
+  #library-header .count{
+    font-size:13px; color:var(--ink-soft);
+  }
+  #shelf-scroll{
+    flex:1; overflow-y:auto; padding:14px 18px 120px;
+    -webkit-overflow-scrolling:touch;
+  }
+  #shelf{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(128px,1fr));
+    gap:22px 16px;
+  }
+  .book-card{
+    display:flex; flex-direction:column; gap:8px;
+    cursor:pointer;
+  }
+  .book-cover{
+    position:relative;
+    aspect-ratio:3/4.4;
+    border-radius:3px 8px 8px 3px;
+    background:var(--cloth) center/cover no-repeat;
+    box-shadow:
+      -3px 0 0 var(--cloth-deep) inset,
+      0 6px 14px rgba(0,0,0,.28),
+      0 1px 0 rgba(255,255,255,.08) inset;
+    overflow:hidden;
+    display:flex; align-items:flex-end;
+  }
+  .book-cover::before{
+    content:"";
+    position:absolute; left:0; top:4px; bottom:4px; width:6px;
+    background:linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0) 90%);
+  }
+  .book-cover img{width:100%; height:100%; object-fit:cover; display:block;}
+  .book-cover .no-cover{
+    width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+    color:rgba(255,255,255,.55); font-size:11px;
+  }
+  .book-pages-badge{
+    position:absolute; right:6px; bottom:6px;
+    background:rgba(20,18,15,.55); color:#f1ead9;
+    font-size:10px; padding:2px 6px; border-radius:20px;
+    letter-spacing:.02em;
+  }
+  .book-title{
+    font-size:13px; font-weight:600; color:var(--ink);
+    line-height:1.3;
+    overflow:hidden; text-overflow:ellipsis; display:-webkit-box;
+    -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  }
+  .book-meta{font-size:11px; color:var(--ink-soft);}
+
+  #empty-state{
+    margin:60px auto 0; text-align:center; max-width:260px;
+    color:var(--ink-soft);
+  }
+  #empty-state .glyph{font-size:40px; margin-bottom:10px;}
+  #empty-state p{font-size:14px; line-height:1.6; margin:6px 0 0;}
+
+  #fab{
+    position:fixed; right:22px; bottom:calc(26px + env(safe-area-inset-bottom));
+    width:58px; height:58px; border-radius:50%;
+    background:var(--cloth); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px; font-weight:300;
+    box-shadow:0 8px 20px rgba(0,0,0,.3);
+    border:none;
+  }
+  #fab:active{background:var(--cloth-deep);}
+
+  /* ---------- Import sheet ---------- */
+  #import-sheet{
+    position:fixed; inset:0; background:rgba(20,18,15,.5);
+    display:none; align-items:flex-end; z-index:50;
+  }
+  #import-sheet.show{display:flex;}
+  #import-panel{
+    width:100%; background:var(--paper); border-radius:20px 20px 0 0;
+    padding:22px 22px calc(28px + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; gap:14px;
+  }
+  #import-panel h2{
+    margin:0; font-family:ui-serif, Georgia, serif; font-size:20px;
+  }
+  #import-panel .hint{font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:0;}
+  #title-input{
+    font-size:15px; padding:12px 14px; border-radius:10px;
+    border:1px solid #cfc6b2; background:#fff; color:var(--ink);
+    font-family:inherit;
+  }
+  .btn{
+    font-size:15px; font-weight:600; padding:14px; border-radius:12px;
+    border:none; text-align:center;
+  }
+  .btn-primary{background:var(--cloth); color:#fff;}
+  .btn-ghost{background:transparent; color:var(--ink-soft);}
+  #file-input{display:none;}
+  #picked-summary{font-size:13px; color:var(--ink); min-height:18px;}
+
+  /* ---------- Reader ---------- */
+  #reader{
+    position:fixed; inset:0; background:#000; z-index:100;
+    display:none; flex-direction:column;
+  }
+  #reader.show{display:flex;}
+  #page-stage{
+    flex:1; position:relative; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #page-stage img{
+    max-width:100%; max-height:100%; object-fit:contain;
+    -webkit-user-select:none; user-select:none; pointer-events:none;
+  }
+  .reader-bar{
+    position:absolute; left:0; right:0;
+    display:flex; align-items:center;
+    padding:10px 16px;
+    background:linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0));
+    color:#f1ead9;
+    transition:opacity .2s ease;
+    z-index:5;
+  }
+  #reader-top{ top:0; padding-top:calc(10px + env(safe-area-inset-top)); justify-content:space-between;}
+  #reader-bottom{
+    bottom:0; top:auto;
+    background:linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.55));
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    flex-direction:column; gap:8px; align-items:stretch;
+  }
+  #reader.hide-ui .reader-bar{opacity:0; pointer-events:none;}
+  #reader-close{
+    background:rgba(255,255,255,.14); border:none; color:#f1ead9;
+    width:34px; height:34px; border-radius:50%; font-size:16px;
+  }
+  #reader-title{font-size:13px; font-weight:600; max-width:60%; text-align:center;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #reader-del{background:none; border:none; color:#e0a99b; font-size:13px;}
+  #page-slider{width:100%; accent-color:var(--gold);}
+  #page-count-label{font-size:12px; text-align:center; color:#cfc6b2;}
+
+  #tap-left, #tap-right, #tap-mid{
+    position:absolute; top:0; bottom:0; z-index:2;
+  }
+  #tap-left{left:0; width:28%;}
+  #tap-mid{left:28%; width:44%;}
+  #tap-right{right:0; width:28%;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Library -->
+  <div id="library">
+    <div id="library-header">
+      <h1>ほんだな</h1>
+      <span class="count" id="lib-count"></span>
+    </div>
+    <div id="shelf-scroll">
+      <div id="empty-state" style="display:none;">
+        <div class="glyph">📚</div>
+        <p>右下の + から画像をまとめて選ぶと、<br>電子書籍として保存されます。</p>
+      </div>
+      <div id="shelf"></div>
+    </div>
+  </div>
+
+  <button id="fab">+</button>
+
+  <!-- Import sheet -->
+  <div id="import-sheet">
+    <div id="import-panel">
+      <h2>本をつくる</h2>
+      <p class="hint">画像ファイルをまとめて選んでください。ファイル名に含まれる数字の昇順で自動的にページが並びます。</p>
+      <button class="btn btn-primary" id="pick-files-btn">画像を選ぶ</button>
+      <div id="picked-summary"></div>
+      <input type="text" id="title-input" placeholder="本のタイトル（省略可）">
+      <input type="file" id="file-input" accept="image/*" multiple>
+      <button class="btn btn-primary" id="confirm-import-btn" disabled>この内容で作成</button>
+      <button class="btn btn-ghost" id="cancel-import-btn">キャンセル</button>
+    </div>
+  </div>
+
+  <!-- Reader -->
+  <div id="reader">
+    <div id="page-stage">
+      <img id="page-img" src="" alt="">
+      <div id="tap-left"></div>
+      <div id="tap-mid"></div>
+      <div id="tap-right"></div>
+    </div>
+    <div class="reader-bar" id="reader-top">
+      <button id="reader-close">✕</button>
+      <div id="reader-title"></div>
+      <button id="reader-del">削除</button>
+    </div>
+    <div class="reader-bar" id="reader-bottom">
+      <div id="page-count-label"></div>
+      <input type="range" id="page-slider" min="0" max="0" value="0" step="1">
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- IndexedDB layer ---------------- */
+  const DB_NAME = "hondana-db";
+  const DB_VER = 1;
+  let dbPromise = null;
+
+  function openDB(){
+    if(dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if(!db.objectStoreNames.contains("books")){
+          db.createObjectStore("books", {keyPath:"id"});
+        }
+        if(!db.objectStoreNames.contains("pages")){
+          const store = db.createObjectStore("pages", {keyPath:"id"});
+          store.createIndex("bookId", "bookId", {unique:false});
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return dbPromise;
+  }
+
+  function tx(storeNames, mode){
+    return openDB().then(db => db.transaction(storeNames, mode));
+  }
+
+  function reqToPromise(req){
+    return new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function addBook(book){
+    const t = await tx(["books"], "readwrite");
+    t.objectStore("books").put(book);
+    return new Promise((res, rej) => { t.oncomplete = res; t.onerror = () => rej(t.error); });
+  }
+
+  async function addPages(pages){
+    const t = await tx(["pages"], "readwrite");
+    const store = t.objectStore("pages");
+    pages.forEach(p => store.put(p));
+    return new Promise((res, rej) => { t.oncomplete = res; t.onerror = () => rej(t.error); });
+  }
+
+  async function getAllBooks(){
+    const t = await tx(["books"], "readonly");
+    const all = await reqToPromise(t.objectStore("books").getAll());
+    return all.sort((a,b) => b.createdAt - a.createdAt);
+  }
+
+  async function getPagesForBook(bookId){
+    const t = await tx(["pages"], "readonly");
+    const idx = t.objectStore("pages").index("bookId");
+    const all = await reqToPromise(idx.getAll(IDBKeyRange.only(bookId)));
+    all.sort((a,b) => a.order - b.order);
+    return all;
+  }
+
+  async function deleteBook(bookId){
+    const pages = await getPagesForBook(bookId);
+    const t = await tx(["books","pages"], "readwrite");
+    t.objectStore("books").delete(bookId);
+    const pStore = t.objectStore("pages");
+    pages.forEach(p => pStore.delete(p.id));
+    return new Promise((res, rej) => { t.oncomplete = res; t.onerror = () => rej(t.error); });
+  }
+
+  /* ---------------- Helpers ---------------- */
+  function uid(){
+    return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,8);
+  }
+
+  // Extract the first run of digits in a filename for natural sort.
+  function extractPageNumber(filename){
+    const match = filename.match(/(\d+)/);
+    return match ? parseInt(match[0], 10) : null;
+  }
+
+  function sortFilesByPageNumber(files){
+    const withNum = files.map(f => ({ file:f, num:extractPageNumber(f.name) }));
+    const numbered = withNum.filter(x => x.num !== null);
+    const unnumbered = withNum.filter(x => x.num === null);
+    numbered.sort((a,b) => a.num - b.num || a.file.name.localeCompare(b.file.name));
+    unnumbered.sort((a,b) => a.file.name.localeCompare(b.file.name, "ja"));
+    return [...numbered, ...unnumbered].map(x => x.file);
+  }
+
+  function fmtDate(ts){
+    const d = new Date(ts);
+    return d.getFullYear() + "/" + String(d.getMonth()+1).padStart(2,"0") + "/" + String(d.getDate()).padStart(2,"0");
+  }
+
+  /* ---------------- Library rendering ---------------- */
+  const shelf = document.getElementById("shelf");
+  const emptyState = document.getElementById("empty-state");
+  const libCount = document.getElementById("lib-count");
+
+  async function renderLibrary(){
+    const books = await getAllBooks();
+    shelf.innerHTML = "";
+    emptyState.style.display = books.length ? "none" : "block";
+    libCount.textContent = books.length ? books.length + " 冊" : "";
+
+    for(const book of books){
+      const card = document.createElement("div");
+      card.className = "book-card";
+
+      const cover = document.createElement("div");
+      cover.className = "book-cover";
+
+      if(book.coverBlob){
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(book.coverBlob);
+        img.onload = () => URL.revokeObjectURL(img.src);
+        cover.appendChild(img);
+      } else {
+        const nc = document.createElement("div");
+        nc.className = "no-cover";
+        nc.textContent = "no image";
+        cover.appendChild(nc);
+      }
+
+      const badge = document.createElement("div");
+      badge.className = "book-pages-badge";
+      badge.textContent = book.pageCount + "P";
+      cover.appendChild(badge);
+
+      const title = document.createElement("div");
+      title.className = "book-title";
+      title.textContent = book.title;
+
+      const meta = document.createElement("div");
+      meta.className = "book-meta";
+      meta.textContent = fmtDate(book.createdAt);
+
+      card.appendChild(cover);
+      card.appendChild(title);
+      card.appendChild(meta);
+      card.addEventListener("click", () => openReader(book.id));
+      shelf.appendChild(card);
+    }
+  }
+
+  /* ---------------- Import flow ---------------- */
+  const importSheet = document.getElementById("import-sheet");
+  const fileInput = document.getElementById("file-input");
+  const pickBtn = document.getElementById("pick-files-btn");
+  const pickedSummary = document.getElementById("picked-summary");
+  const titleInput = document.getElementById("title-input");
+  const confirmBtn = document.getElementById("confirm-import-btn");
+  const cancelBtn = document.getElementById("cancel-import-btn");
+  const fab = document.getElementById("fab");
+
+  let pickedFiles = [];
+
+  function openImportSheet(){
+    pickedFiles = [];
+    pickedSummary.textContent = "";
+    titleInput.value = "";
+    confirmBtn.disabled = true;
+    importSheet.classList.add("show");
+  }
+  function closeImportSheet(){
+    importSheet.classList.remove("show");
+  }
+
+  fab.addEventListener("click", openImportSheet);
+  cancelBtn.addEventListener("click", closeImportSheet);
+  pickBtn.addEventListener("click", () => fileInput.click());
+
+  fileInput.addEventListener("change", () => {
+    const files = Array.from(fileInput.files || []).filter(f => f.type.startsWith("image/"));
+    pickedFiles = sortFilesByPageNumber(files);
+    if(pickedFiles.length){
+      const preview = pickedFiles.slice(0,3).map(f => f.name).join(", ");
+      pickedSummary.textContent = pickedFiles.length + " 枚選択（順番: " + preview + (pickedFiles.length>3 ? " …" : "") + "）";
+      confirmBtn.disabled = false;
+    } else {
+      pickedSummary.textContent = "画像が見つかりませんでした。";
+      confirmBtn.disabled = true;
+    }
+  });
+
+  confirmBtn.addEventListener("click", async () => {
+    if(!pickedFiles.length) return;
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "作成中…";
+
+    const bookId = uid();
+    const title = titleInput.value.trim() || ("無題の本 " + fmtDate(Date.now()));
+    const pages = pickedFiles.map((file, i) => ({
+      id: bookId + "-" + i,
+      bookId,
+      order: i,
+      blob: file
+    }));
+
+    await addBook({
+      id: bookId,
+      title,
+      createdAt: Date.now(),
+      pageCount: pages.length,
+      coverBlob: pickedFiles[0]
+    });
+    await addPages(pages);
+
+    confirmBtn.textContent = "この内容で作成";
+    confirmBtn.disabled = false;
+    closeImportSheet();
+    renderLibrary();
+  });
+
+  /* ---------------- Reader ---------------- */
+  const reader = document.getElementById("reader");
+  const pageImg = document.getElementById("page-img");
+  const readerTitle = document.getElementById("reader-title");
+  const readerClose = document.getElementById("reader-close");
+  const readerDel = document.getElementById("reader-del");
+  const pageSlider = document.getElementById("page-slider");
+  const pageCountLabel = document.getElementById("page-count-label");
+  const tapLeft = document.getElementById("tap-left");
+  const tapRight = document.getElementById("tap-right");
+  const tapMid = document.getElementById("tap-mid");
+
+  let currentBook = null;
+  let currentPages = [];
+  let currentIndex = 0;
+  let currentUrl = null;
+
+  async function openReader(bookId){
+    const books = await getAllBooks();
+    currentBook = books.find(b => b.id === bookId);
+    if(!currentBook) return;
+    currentPages = await getPagesForBook(bookId);
+    currentIndex = 0;
+    readerTitle.textContent = currentBook.title;
+    pageSlider.max = String(Math.max(currentPages.length - 1, 0));
+    reader.classList.add("show");
+    reader.classList.remove("hide-ui");
+    showPage(0);
+  }
+
+  function showPage(index){
+    if(index < 0 || index >= currentPages.length) return;
+    currentIndex = index;
+    if(currentUrl) URL.revokeObjectURL(currentUrl);
+    currentUrl = URL.createObjectURL(currentPages[index].blob);
+    pageImg.src = currentUrl;
+    pageSlider.value = String(index);
+    pageCountLabel.textContent = (index + 1) + " / " + currentPages.length;
+  }
+
+  function closeReader(){
+    reader.classList.remove("show");
+    if(currentUrl){ URL.revokeObjectURL(currentUrl); currentUrl = null; }
+    pageImg.src = "";
+    renderLibrary();
+  }
+
+  readerClose.addEventListener("click", closeReader);
+
+  readerDel.addEventListener("click", async () => {
+    if(!currentBook) return;
+    const ok = confirm("「" + currentBook.title + "」を削除しますか？この操作は取り消せません。");
+    if(!ok) return;
+    await deleteBook(currentBook.id);
+    closeReader();
+  });
+
+  tapLeft.addEventListener("click", () => showPage(currentIndex - 1));
+  tapRight.addEventListener("click", () => showPage(currentIndex + 1));
+  tapMid.addEventListener("click", () => reader.classList.toggle("hide-ui"));
+
+  pageSlider.addEventListener("input", () => {
+    showPage(parseInt(pageSlider.value, 10));
+  });
+
+  // Swipe gestures
+  let touchStartX = null, touchStartY = null;
+  reader.addEventListener("touchstart", (e) => {
+    if(e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, {passive:true});
+
+  reader.addEventListener("touchend", (e) => {
+    if(touchStartX === null) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+    touchStartX = null; touchStartY = null;
+    if(Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4){
+      if(dx < 0) showPage(currentIndex + 1);
+      else showPage(currentIndex - 1);
+    }
+  }, {passive:true});
+
+  /* ---------------- Init ---------------- */
+  renderLibrary();
+})();
+</script>
+</body>
+</html>
